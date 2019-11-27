@@ -3,12 +3,12 @@
 
 #define PWM_PIN 20
 
-int typeMessage(int tr);/*
+int annaliseMessage(int tr);/*
 retourne
 0 si message invalide
 1 si regarder les variable (reg)
-2 si changement de pwm (frecp)
-3 si changement d'echantionage (frece)
+2 si changement de pwm (frec)
+3 si changement recupartion de la constante de temps
 */
 void IntrerrupTimer();/*
 raz des pas fait
