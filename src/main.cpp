@@ -3,14 +3,16 @@
 int nbPas=0;
 int pwm=0;
 int frequancePwm=30000;
-boolean contage=false;
+boolean contage=false,simulationEncour=false;
 int time=0;
 int pas;
 byte resultat[30000];
 int message[50];
 int tr=0,recep,tempsAvanSimulation=0;
-int etatDeSimulation=0,decont=0,dureSim=10000;
-
+int etatDeSimulation=0,decont=0,dureSim=10000,timeSyme=0;
+int etat=0,etat21=0;
+boolean messageEstTau=false,messageEstRecupere=false,finDeSime=false;
+int tableau=0;
 void setup() {
   resultat[1]=10;
   // put your setup code here, to run once:
@@ -22,7 +24,7 @@ void setup() {
   pinMode(13,OUTPUT);
   digitalWrite(13,HIGH);
   attachInterrupt(digitalPinToInterrupt(14),up,RISING);
-  Serial1.begin(115200);
+  Serial1.begin(9600);
   Serial.begin(115200);
 
   Serial1.println("teset 1");
@@ -30,6 +32,7 @@ void setup() {
   MsTimer2::start();
   analogWriteFrequency(PWM_PIN, frequancePwm);
   analogWrite(20,pwm);
+  etat=1;
 }
 
 void loop() {
@@ -45,8 +48,6 @@ void loop() {
           Serial1.print((char)message[i]);
         }
         Serial1.println();
-
-
         switch (annaliseMessage(tr)) {
           case 0:
           Serial1.println("ereur mauvaise ortografe");
@@ -63,11 +64,16 @@ void loop() {
           Serial1.println(frequancePwm);
           break;
           case 3:
-          Serial1.println("lansement de la simulation dans :");
+          Serial1.println("lansement de la simulation dans(Tau) :");
+          messageEstTau=true;
           break;
           case 4:
           Serial1.print("duree de simulation");
           Serial1.println(dureSim);
+          break;
+          case 5:
+          messageEstRecupere=true;
+          break;
         }
         tr=0;
         for(int i=0;i<50;i++)message[i]=0;
@@ -75,14 +81,52 @@ void loop() {
       }
     }
   }
-    analogWrite(PWM_PIN,pwm);
+  switch (etat) {
+    case 1:
+    //attante de message
+    if(messageEstTau){
+      etat=21;
+      time=0;
+      MsTimer2::start();
+      messageEstTau=false;
+    }
+    break;
+    case 21://simulation constante
+    if(finDeSime){
+      etat=3;
+      finDeSime=false;
+    }
+    break;
+    case 3://attante pour envoi du tableau
+    if(messageEstRecupere){
+      etat=4;
+      messageEstRecupere=false;
+    }
+    else if(messageEstTau){
+      etat=21;
+      messageEstTau=false;
+      time=0;
+    }
+    break;
+    case 4://envoie du tableau
+    int i;
+    for(i=0;i<tableau;i++){
+      Serial1.print('1');
+      Serial1.println(resultat[i]);
+      resultat[i]=0;
+    }
+    etat=1;
+    break;
+  }
+
+  analogWrite(PWM_PIN,pwm);
 }
 int annaliseMessage(int tr){
-  const int  TAILLE_TABLEAU= 4;
+  const int  TAILLE_TABLEAU= 5;
   boolean espase=false,messageTrouver=true/*,messageChifre=true*/;
   int empEspase=0,mult=1,analiseLecture=0;
   byte numeDeMessage=0;
-  String  mess[]={"reg","freq","Tau","dureSim"};
+  String  mess[]={"reg","freq","Tau","dureSim","lancer"};
 
   for(int i=0;i<tr;i++){
     if(message[i]==' '){
@@ -124,10 +168,10 @@ int annaliseMessage(int tr){
   if(!messageTrouver)return 0;
 
   if(espase){
-    if(!(empEspase<tr&&!(message[empEspase+2]<=47 || message[empEspase+2]>=58))){
+    if(!(empEspase<tr&&!(message[empEspase+1]<=47 || message[empEspase+1]>=58))){
       //messageChifre = false;
       Serial1.println(empEspase+1<tr);
-      Serial1.println((message[empEspase+2]<=47 || message[empEspase+2]>=58));
+      Serial1.println((message[empEspase+1]<=47 || message[empEspase+1]>=58));
       Serial1.println("Triple buse du doit maitre un chiffre appre le espase");
       return 0;
     }
@@ -154,8 +198,9 @@ int annaliseMessage(int tr){
           decont+=(message[i]-48)*mult;
           mult*=10;
         }
+        decont*=1000;
       }else decont=10000;
-      time=0;
+      //time=0;
       etatDeSimulation=1;
       return 3;
     break;
@@ -169,8 +214,11 @@ int annaliseMessage(int tr){
         dureSim*=1000;
         return 4;
       }
-      Serial1.println("a moin que tu ne vienne du cosmose sinon tu nes pas sans savoire que tu doit metre un chifre pour undiquer la dure que tu veux");
+      Serial1.println("a moin que tu ne vienne du cosmose tu nes pas sans savoire que tu doit metre un chifre pour undiquer la dure que tu veux");
       return 0;
+    break;
+    case 4:
+      return 5;
     break;
   }
   return 0;
@@ -178,18 +226,37 @@ int annaliseMessage(int tr){
 void IntrerrupTimer(){
   pas =nbPas;
   nbPas=0;
-  time++;
-  switch (etatDeSimulation) {
-    case 1:
-      if(decont<time){
-        pwm=255;
+
+  switch (etat) {
+    case 21://constante de tempse
+    time++;
+    switch (etat21) {
+      case 0:
+      if(time>=decont){
+        etat21=1;
+        tableau=0;
       }
+      pwm=0;
+      break;
+      case 1:
+      resultat[tableau]=pas;
+      tableau++;
+      pwm=255;
+      if(time>=decont+dureSim){
+        etat21=0;
+        finDeSime=true;
+        pwm=0;
+      }
+      break;
+    }
     break;
   }
+
 }
 void up(){
-  if(contage){
-    if(digitalRead(15))nbPas++;
-    else nbPas--;
+  if(etatDeSimulation!=0&&time>decont-100){
+    //if(digitalRead(15))nbPas++;
+    //else nbPas--;
+    nbPas++;
   }
 }
