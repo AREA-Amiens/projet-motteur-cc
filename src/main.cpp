@@ -10,8 +10,8 @@ byte resultat[30000];
 int message[50];
 int tr=0,recep,tempsAvanSimulation=0;
 int etatDeSimulation=0,decont=0,dureSim=10000,timeSyme=0;
-int etat=0,etat21=0;
-boolean messageEstTau=false,messageEstRecupere=false,finDeSime=false;
+int etat=0,etat2=0;
+boolean messageEstTau=false,messageEstRecupere=false,finDeSime=false,messageEstVitesse=false;
 int tableau=0;
 void setup() {
   resultat[1]=10;
@@ -74,6 +74,10 @@ void loop() {
           case 5:
           messageEstRecupere=true;
           break;
+          case 6:
+          Serial1.println("lansement de la simulation dans(Vitesse) :");
+          messageEstVitesse=true;
+          break;
         }
         tr=0;
         for(int i=0;i<50;i++)message[i]=0;
@@ -85,13 +89,13 @@ void loop() {
     case 1:
     //attante de message
     if(messageEstTau){
-      etat=21;
+      etat=2;
       time=0;
       MsTimer2::start();
       messageEstTau=false;
     }
     break;
-    case 21://simulation constante
+    case 2://simulation constante
     if(finDeSime){
       etat=3;
       finDeSime=false;
@@ -103,7 +107,7 @@ void loop() {
       messageEstRecupere=false;
     }
     else if(messageEstTau){
-      etat=21;
+      etat=2;
       messageEstTau=false;
       time=0;
     }
@@ -122,11 +126,11 @@ void loop() {
   analogWrite(PWM_PIN,pwm);
 }
 int annaliseMessage(int tr){
-  const int  TAILLE_TABLEAU= 5;
+  const int  TAILLE_TABLEAU= 6;
   boolean espase=false,messageTrouver=true/*,messageChifre=true*/;
   int empEspase=0,mult=1,analiseLecture=0;
   byte numeDeMessage=0;
-  String  mess[]={"reg","freq","Tau","dureSim","lancer"};
+  String  mess[]={"reg","freq","Tau","dureSim","lancer","vitesse"};
 
   for(int i=0;i<tr;i++){
     if(message[i]==' '){
@@ -220,6 +224,9 @@ int annaliseMessage(int tr){
     case 4:
       return 5;
     break;
+    case 5:
+      return 6;
+    break;
   }
   return 0;
 }
@@ -228,12 +235,12 @@ void IntrerrupTimer(){
   nbPas=0;
 
   switch (etat) {
-    case 21://constante de tempse
+    case 2://constante de tempse
     time++;
-    switch (etat21) {
+    switch (etat2) {
       case 0:
       if(time>=decont){
-        etat21=1;
+        etat2=1;
         tableau=0;
       }
       pwm=0;
@@ -243,7 +250,7 @@ void IntrerrupTimer(){
       tableau++;
       pwm=255;
       if(time>=decont+dureSim){
-        etat21=0;
+        etat2=0;
         finDeSime=true;
         pwm=0;
       }
